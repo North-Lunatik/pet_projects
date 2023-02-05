@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
 from itertools import cycle
-from pathlib import Path
+from tkinter import BOTH, END, Tk, filedialog, messagebox
+from tkinter.ttk import Button, Entry, Frame, Label
 from typing import Tuple
 
 import xlrd
@@ -54,7 +55,7 @@ def check_duplicates(file_path: str) -> Tuple[str, int]:
 
     duplicates = [(x, y) for x, y in result.items() if len(y) > 1]
     
-    return f'Дубликатов: {len(duplicates)}', len(duplicates)
+    return f'Дубликатов в xml: {len(duplicates)}', len(duplicates)
 
 def remove_duplicates(file_path: str) -> None:
     """Удаляет дубликаты из конечного файла с результатом."""
@@ -85,59 +86,111 @@ def get_ot_data(ot_obj: Element) -> str:
         return ''
     
     return ot
-    
+
+class Application(Frame):
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.xml_filepath = None
+        self.report_filepath = None
+        self.initUI()
+
+    def initUI(self):
+        """Инициализирует UI."""
+        self.master.title('Костыль для подстановки диагнозов')
+        self.pack(fill=BOTH, expand=True)
+
+        # Путь до отчета
+        report_field_label = Label(self, text="Файл отчета")
+        report_field_label.grid(row=1, column=1, padx=5, pady=5)
+        self.report_field = Entry(self, width=60)
+        self.report_field.grid(row=1, column=2)
+        select_report_button = Button(self, text="...", command=self.open_report_file)
+        select_report_button.grid(row=1, column=3)
+
+        # Путь до XML
+        xml_field_label = Label(self, text="Файл XML")
+        xml_field_label.grid(row=2, column=1, padx=5, pady=5)
+        self.xml_field = Entry(self, width=60)
+        self.xml_field.grid(row=2, column=2)
+        select_xml_button = Button(self, text="...", command=self.open_xml_file)
+        select_xml_button.grid(row=2, column=3)
+
+        run_button = Button(self, text="Преобразовать", command=self.rebuild_xml)
+        run_button.grid(row=3, column=2)
+
+    def open_report_file(self):
+        """Устанавливает путь к отчету."""
+        self.report_filepath = filedialog.askopenfilename()
+        self.report_field.delete("0", END)
+        self.report_field.insert(0, self.report_filepath)
+
+    def open_xml_file(self):
+        """Устанавливает путь к xml."""
+        self.xml_filepath = filedialog.askopenfilename()
+        self.xml_field.delete("0", END)
+        self.xml_field.insert(0, self.xml_filepath)
+
+    def rebuild_xml(self):
+        """Обрабатываем файл."""
+        if not self.report_filepath:
+            messagebox.showerror("Ошибка", "Не выбран файл с отчетом.")
+        if not self.xml_filepath:
+            messagebox.showerror("Ошибка", "Не выбран xml файл.")
+        report_data = None
+        phone_data = None
+        xml_file_path = self.xml_filepath
+        report_data, phone_data = get_data_from_report(str(self.report_filepath))
+
+        # фиксируем позицию элементов
+        prepared_report_data = {}
+        for x, y in report_data.items():
+            data = list(y)
+            data.sort()
+            prepared_report_data[x] = cycle(data)
+
+        tree = etree.parse(xml_file_path)
+        root = tree.getroot()
+        for zap in root.findall('ZAP'):
+            if zap.find('DISP_TYP').text != '3':
+                zap.getparent().remove(zap)
+            else:
+                fio = f"{zap.find('FAM').text} {zap.find('IM').text} {get_ot_data(zap.find('OT'))}".strip()
+                dr = datetime.fromisoformat(zap.find('DR').text)
+                dr_str = dr.strftime('%Y-%m-%d')
+                prev = datetime.fromisoformat(zap.find('DAT_PREV').text).date() if zap.find('DAT_PREV').text else None
+
+                if not zap.find('DS').text:
+                    rd = prepared_report_data.get((fio, dr), None)
+                    if rd:
+                        date_prev, ds = next(rd)
+                        zap.find('DS').text = ds
+                        zap.find('DAT_PREV').text = date_prev.strftime('%Y-%m-%d')
+                        phones = [x for x in phone_data.get((fio, dr), []) if x != '']
+                        # Если телефон указан в отчете
+                        if phones:
+                            zap.find('PHONE').text = phones[0]
+                    else:
+                        print(f'Для {fio} {dr_str} не найдено данных в отчете')
+
+        result_path = os.path.join(os.getcwd(), 'result.xml')
+        with open(result_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
+            f.write(tostring(root, pretty_print=True, encoding='Windows-1251', xml_declaration=True).decode('cp1251'))
+
+        result_text, count = check_duplicates(result_path)
+        print(result_text)
+        if count > 0:
+            remove_duplicates(result_path)
+
+        print('Готово.')
+
+
+def main():
+
+    root = Tk()
+    app = Application()
+    root.mainloop()
+
 
 if __name__ == '__main__':
-    report_data = None
-    phone_data = None
-    xml_file_path = None
-    for filename in Path(os.getcwd()).iterdir():
-        if filename.name.endswith('_list_disp_observ_pg.xls'):
-            report_data, phone_data = get_data_from_report(str(filename))
-        elif filename.name.endswith('.xml'):
-            xml_file_path = str(filename)
-        
-        if report_data and xml_file_path:
-            break
-    
-    # фиксируем позицию элементов
-    prepared_report_data = {}
-    for x, y in report_data.items():
-        data = list(y)
-        data.sort()
-        prepared_report_data[x] = cycle(data)
-
-    tree = etree.parse(xml_file_path)
-    root = tree.getroot()
-    for zap in root.findall('ZAP'):
-        if zap.find('DISP_TYP').text != '3':
-            zap.getparent().remove(zap)
-        else:
-            fio = f"{zap.find('FAM').text} {zap.find('IM').text} {get_ot_data(zap.find('OT'))}".strip()
-            dr = datetime.fromisoformat(zap.find('DR').text)
-            dr_str = dr.strftime('%Y-%m-%d')
-            prev = datetime.fromisoformat(zap.find('DAT_PREV').text).date() if zap.find('DAT_PREV').text else None
-
-            if not zap.find('DS').text:
-                rd = prepared_report_data.get((fio, dr), None)
-                if rd:
-                    date_prev, ds = next(rd)
-                    zap.find('DS').text = ds
-                    zap.find('DAT_PREV').text = date_prev.strftime('%Y-%m-%d')
-                    phones = [x for x in phone_data.get((fio, dr), []) if x != '']
-                    # Если телефон указан в отчете
-                    if phones:
-                        zap.find('PHONE').text = phones[0]
-                else:
-                    print(f'Для {fio} {dr_str} не найдено данных в отчете')
-
-    result_path = os.path.join(os.getcwd(), 'result.xml')
-    with open(result_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
-        f.write(tostring(root, pretty_print=True, encoding='Windows-1251', xml_declaration=True).decode('cp1251'))
-
-    result_text, count = check_duplicates(result_path)
-    print(result_text)
-    if count > 0:
-        remove_duplicates(result_path)
-
-    print('Готово.')
+    main()
