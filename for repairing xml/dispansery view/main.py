@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
 from itertools import cycle
-from tkinter import BOTH, END, Tk, filedialog, messagebox
+from tkinter import (BOTH, END, Checkbutton, IntVar, Tk, W, filedialog,
+                     messagebox)
 from tkinter.scrolledtext import ScrolledText
 from tkinter.ttk import Button, Entry, Frame, Label
 from typing import List, Tuple, Union
@@ -132,14 +133,22 @@ class Application(Frame):
         select_xml_button = Button(self, text="...", command=self.open_xml_file)
         select_xml_button.grid(row=2, column=3)
 
+        # Признак для отключения удаления лишних типов данных
+        self.is_not_remove_other_data = IntVar(value=0)
+        self.cb = Checkbutton(
+            self, text="Оставить в xml записи кроме DISP_TYPE == 3?",
+            variable=self.is_not_remove_other_data,
+        )
+        self.cb.grid(row=3, column=1, columnspan=2, sticky=W, ipadx=30)
+
         run_button = Button(self, text="Преобразовать", command=self.rebuild_xml)
-        run_button.grid(row=3, column=2)
+        run_button.grid(row=4, column=2)
         help_button = Button(self, text="Справка", command=self.show_help)
-        help_button.grid(row=3, column=3)
+        help_button.grid(row=4, column=3)
 
         # Виджет для отображаения результатов обработки
         self.console = ScrolledText(self, height=10)
-        self.console.grid(row=4, column=1, columnspan=3)
+        self.console.grid(row=5, column=1, columnspan=3)
 
     def to_console(self, msgs: Union[str, List[str]]) -> None:
         """Добавляет строку в виджет вывода результатов на экран."""
@@ -166,6 +175,10 @@ class Application(Frame):
     def show_help(self) -> None:
         """Выводит диалоговое окно со справкой по использованию."""
         messagebox.showinfo('Справка по использованию.', help)
+    
+    def is_allow_remove(self) -> bool:
+        """Возвращает признак отражающий разрешение удалять данные с DISP_TYPE == 3."""
+        return bool(not self.is_not_remove_other_data.get())
 
     def rebuild_xml(self) -> None:
         """Обрабатывает файл."""
@@ -196,7 +209,8 @@ class Application(Frame):
         root = tree.getroot()
         for zap in root.findall('ZAP'):
             if zap.find('DISP_TYP').text != '3':
-                zap.getparent().remove(zap)
+                if self.is_allow_remove():
+                    zap.getparent().remove(zap)
             else:
                 fio = f"{zap.find('FAM').text} {zap.find('IM').text} {clean_patronymic(zap.find('OT'))}".strip()
                 dr = datetime.fromisoformat(zap.find('DR').text)
