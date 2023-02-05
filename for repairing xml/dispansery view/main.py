@@ -8,6 +8,7 @@ import xlrd
 from lxml import etree
 from lxml.etree import Element, tostring
 
+
 def get_data_from_report(filename):
     """Возвращает записи отчета, в которых указана дата последней явки."""
     report_data = {}
@@ -64,6 +65,8 @@ def remove_duplicates(file_path: str) -> None:
         else:
             root.remove(zap)
 
+    with open(file_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
+        f.write(tostring(root, pretty_print=True, encoding='Windows-1251', xml_declaration=True).decode('cp1251'))
     print('Дубликаты удалены.')
 
 def get_ot_data(ot_obj: Element) -> str:
