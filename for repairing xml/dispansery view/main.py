@@ -50,7 +50,7 @@ def check_duplicates(file_path: str) -> Tuple[str, int]:
     return f'Дубликатов: {len(duplicates)}', len(duplicates)
 
 def remove_duplicates(file_path: str) -> None:
-    """Возвращает сводку по наличию дубликатов в итоговой xml по параметрам fio, dr, ds"""
+    """Удаляет дубликаты из конечного файла с результатом."""
     result = {}
 
     tree = etree.parse(file_path)
@@ -63,7 +63,6 @@ def remove_duplicates(file_path: str) -> None:
             result[(fio, dr, ds)] = [ds]
         else:
             root.remove(zap)
-        # result.setdefault((fio, dr, ds), []).append(ds)
 
     print('Дубликаты удалены.')
 
