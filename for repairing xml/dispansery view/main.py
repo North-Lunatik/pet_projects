@@ -9,9 +9,10 @@ from lxml import etree
 from lxml.etree import Element, tostring
 
 
-def get_data_from_report(filename):
-    """Возвращает записи отчета, в которых указана дата последней явки."""
+def get_data_from_report(filename) -> Tuple[dict]:
+    """Возвращает записи отчета, в которых указана дата последней явки и вспомогательные данные."""
     report_data = {}
+    phone_data = {}
 
     with xlrd.open_workbook_xls(str(filename)) as book:
         sheet = book.sheet_by_index(0)
@@ -20,6 +21,7 @@ def get_data_from_report(filename):
         for row_index in range(21, row_count):
             fio = sheet.cell(row_index, 1).value
             dr = sheet.cell(row_index, 3).value
+            phone = sheet.cell(row_index, 5).value
             date_of_appearance = sheet.cell(row_index, 10).value.split('\n')[0]
             ds = str(sheet.cell(row_index, 2).value).split('. ')[0]
             if fio == '' and dr == '':
@@ -31,8 +33,12 @@ def get_data_from_report(filename):
                 ).add(
                     (datetime.strptime(date_of_appearance, '%d.%m.%Y'), ds)
                 )
+                # сохраняем дополнительную информацию
+                phone_data.setdefault(
+                    (fio, datetime.strptime(dr, '%d.%m.%Y')), set()
+                ).add(phone)
         
-    return report_data
+    return report_data, phone_data
 
 def check_duplicates(file_path: str) -> Tuple[str, int]:
     """Возвращает сводку по наличию дубликатов в итоговой xml по параметрам fio, dr, ds"""
@@ -83,10 +89,11 @@ def get_ot_data(ot_obj: Element) -> str:
 
 if __name__ == '__main__':
     report_data = None
+    phone_data = None
     xml_file_path = None
     for filename in Path(os.getcwd()).iterdir():
         if filename.name.endswith('_list_disp_observ_pg.xls'):
-            report_data = get_data_from_report(str(filename))
+            report_data, phone_data = get_data_from_report(str(filename))
         elif filename.name.endswith('.xml'):
             xml_file_path = str(filename)
         
@@ -117,6 +124,10 @@ if __name__ == '__main__':
                     date_prev, ds = next(rd)
                     zap.find('DS').text = ds
                     zap.find('DAT_PREV').text = date_prev.strftime('%Y-%m-%d')
+                    phones = [x for x in phone_data.get((fio, dr), []) if x != '']
+                    # Если телефон указан в отчете
+                    if phones:
+                        zap.find('PHONE').text = phones[0]
                 else:
                     print(f'Для {fio} {dr_str} не найдено данных в отчете')
 
