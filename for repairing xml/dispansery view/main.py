@@ -84,7 +84,7 @@ def remove_duplicates(file_path: str) -> None:
     with open(file_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
         f.write(tostring(root, pretty_print=True, encoding='Windows-1251', xml_declaration=True).decode('cp1251'))
 
-def get_ot_data(ot_obj: Element) -> str:
+def clean_patronymic(ot_obj: Element) -> str:
     """Возвращает обработанное отчество."""
     if ot_obj is None:
         return ''
@@ -94,6 +94,13 @@ def get_ot_data(ot_obj: Element) -> str:
         return ''
     
     return ot
+
+def clean_phone(phone: str) -> str:
+    """Дополняет номер телефона кодом страны - `+7`."""
+    if phone.startswith('+7'):
+        return phone
+    else:
+        return f'+7{phone}'
 
 class Application(Frame):
 
@@ -158,7 +165,6 @@ class Application(Frame):
 
     def show_help(self) -> None:
         """Выводит диалоговое окно со справкой по использованию."""
-
         messagebox.showinfo('Справка по использованию.', help)
 
     def rebuild_xml(self) -> None:
@@ -192,7 +198,7 @@ class Application(Frame):
             if zap.find('DISP_TYP').text != '3':
                 zap.getparent().remove(zap)
             else:
-                fio = f"{zap.find('FAM').text} {zap.find('IM').text} {get_ot_data(zap.find('OT'))}".strip()
+                fio = f"{zap.find('FAM').text} {zap.find('IM').text} {clean_patronymic(zap.find('OT'))}".strip()
                 dr = datetime.fromisoformat(zap.find('DR').text)
                 dr_str = dr.strftime('%Y-%m-%d')
                 prev = datetime.fromisoformat(zap.find('DAT_PREV').text).date() if zap.find('DAT_PREV').text else None
@@ -206,7 +212,7 @@ class Application(Frame):
                         phones = [x for x in phone_data.get((fio, dr), []) if x != '']
                         # Если телефон указан в отчете
                         if phones:
-                            zap.find('PHONE').text = phones[0]
+                            zap.find('PHONE').text = clean_phone(phones[0])
                     else:
                         self.to_console(f'Для {fio} {dr_str} не найдено данных в отчете')
 
@@ -220,15 +226,15 @@ class Application(Frame):
             self.to_console(result_text)
             remove_duplicates(result_path)
             self.to_console('Дубликаты удалены.')
-
+        self.to_console(f'Результат находится в `{result_path}`')
         self.to_console(['', 'Готово.'])
 
 
-def main():
+def start_app() -> None:
+    """Стартует приложение tk."""
     root = Tk()
     app = Application()
     root.mainloop()
 
-
 if __name__ == '__main__':
-    main()
+    start_app()
