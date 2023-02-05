@@ -2,11 +2,11 @@ import os
 from datetime import datetime
 from itertools import cycle
 from pathlib import Path
+from typing import Tuple
 
 import xlrd
 from lxml import etree
-from lxml.etree import tostring
-
+from lxml.etree import Element, tostring
 
 def get_data_from_report(filename):
     """Возвращает записи отчета, в которых указана дата последней явки."""
@@ -33,19 +33,51 @@ def get_data_from_report(filename):
         
     return report_data
 
-def check_duplicates(file_path: str) -> str:
+def check_duplicates(file_path: str) -> Tuple[str, int]:
     """Возвращает сводку по наличию дубликатов в итоговой xml по параметрам fio, dr, ds"""
     result = {}
 
-    tree = etree.parse(xml_file_path)
+    tree = etree.parse(file_path)
     root = tree.getroot()
     for zap in root.findall('ZAP'):
         fio = f"{zap.find('FAM').text} {zap.find('IM').text} {zap.find('OT').text if zap.find('OT') is not None else ''}".strip()
         dr = datetime.fromisoformat(zap.find('DR').text)
         ds = zap.find('DS').text
-        result.setdefault((fio, dr), []).append(ds)
+        result.setdefault((fio, dr, ds), []).append(ds)
 
-    return f'Дубликатов: {len([x for x, y in result.items() if len(y) > 1])}'
+    duplicates = [(x, y) for x, y in result.items() if len(y) > 1]
+    
+    return f'Дубликатов: {len(duplicates)}', len(duplicates)
+
+def remove_duplicates(file_path: str) -> None:
+    """Возвращает сводку по наличию дубликатов в итоговой xml по параметрам fio, dr, ds"""
+    result = {}
+
+    tree = etree.parse(file_path)
+    root = tree.getroot()
+    for zap in root.findall('ZAP'):
+        fio = f"{zap.find('FAM').text} {zap.find('IM').text} {zap.find('OT').text if zap.find('OT') is not None else ''}".strip()
+        dr = datetime.fromisoformat(zap.find('DR').text)
+        ds = zap.find('DS').text
+        if (fio, dr, ds) not in result:
+            result[(fio, dr, ds)] = [ds]
+        else:
+            root.remove(zap)
+        # result.setdefault((fio, dr, ds), []).append(ds)
+
+    print('Дубликаты удалены.')
+
+def get_ot_data(ot_obj: Element) -> str:
+    """Возвращает обработанное отчество."""
+    if ot_obj is None:
+        return ''
+
+    ot = ot_obj.text
+    if ot.upper() == 'НЕТ':
+        return ''
+    
+    return ot
+    
 
 if __name__ == '__main__':
     report_data = None
@@ -58,8 +90,13 @@ if __name__ == '__main__':
         
         if report_data and xml_file_path:
             break
-
-    prepared_report_data = {x: cycle(y) for x, y in report_data.items()}
+    
+    # фиксируем позицию элементов
+    prepared_report_data = {}
+    for x, y in report_data.items():
+        data = list(y)
+        data.sort()
+        prepared_report_data[x] = cycle(data)
 
     tree = etree.parse(xml_file_path)
     root = tree.getroot()
@@ -67,7 +104,7 @@ if __name__ == '__main__':
         if zap.find('DISP_TYP').text != '3':
             zap.getparent().remove(zap)
         else:
-            fio = f"{zap.find('FAM').text} {zap.find('IM').text} {zap.find('OT').text if zap.find('OT') is not None else ''}".strip()
+            fio = f"{zap.find('FAM').text} {zap.find('IM').text} {get_ot_data(zap.find('OT'))}".strip()
             dr = datetime.fromisoformat(zap.find('DR').text)
             dr_str = dr.strftime('%Y-%m-%d')
             prev = datetime.fromisoformat(zap.find('DAT_PREV').text).date() if zap.find('DAT_PREV').text else None
@@ -85,5 +122,9 @@ if __name__ == '__main__':
     with open(result_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
         f.write(tostring(root, pretty_print=True, encoding='Windows-1251', xml_declaration=True).decode('cp1251'))
 
-    print(check_duplicates(result_path))
+    result_text, count = check_duplicates(result_path)
+    print(result_text)
+    if count > 0:
+        remove_duplicates(result_path)
+
     print('Готово.')
