@@ -7,3 +7,21 @@
 
 Для исправления файла для последующего корректного чтения нужно пересохранить его 
 через команду "Сохранить как" снова в формат xls.
+
+Для запуска на Windows 7,10:
+1) инсталлируем python3 (tkinter идет в пакете установщике, не забываем поставить галку)
+2) обновляем pip и инсталлируем зависимости\
+  `python -m pip install --upgrade pip`\
+  `pip install -r requirements.txt`
+3) запускаем: `python main.py`
+ 
+Для запуска на ALTLinux p10:
+1) устанавливаем библиотеку tk для python3, если её нет\
+  `apt-get install python3-modules-tkinter`
+2) создаем и активируем виртуальное окружение для python 3\
+  `python3 -m venv .env`\
+  `source ./.env/bin/activate`\
+  При необходимости обновляем pip и инсталлируем зависимости\
+  `python -m pip install --upgrade pip`\
+  `pip install -r requirements.txt`
+3) запускаем: `python main.py`
