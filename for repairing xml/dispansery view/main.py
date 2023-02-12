@@ -110,11 +110,12 @@ class Application(Frame):
         self.xml_filepath = None
         self.report_filepath = None
         self.console = None
+        self.ds_from_168n = None
         self.initUI()
 
     def initUI(self) -> None:
         """Инициализирует UI."""
-        self.master.title('Костыль для подстановки недостающих данных.')
+        self.master.title('Костыль для подстановки недостающих данных по ДН.')
         self.pack(fill=BOTH, expand=True)
 
         # Путь до отчета
@@ -136,19 +137,27 @@ class Application(Frame):
         # Признак для отключения удаления лишних типов данных
         self.is_not_remove_other_data = IntVar(value=0)
         self.cb = Checkbutton(
-            self, text="Оставить в xml записи кроме DISP_TYPE == 3?",
+            self, text="Оставить в xml записи помимо ДН?",
             variable=self.is_not_remove_other_data,
         )
         self.cb.grid(row=3, column=1, columnspan=2, sticky=W, ipadx=30)
 
+        # Признак для фильтрации диагнозов по приазу 168Н
+        self.filtered_by_ds_from168n = IntVar(value=0)
+        self.cb2 = Checkbutton(
+            self, text="Оставить для ДН только записи с диагнозами из приказа 168Н",
+            variable=self.filtered_by_ds_from168n,
+        )
+        self.cb2.grid(row=4, column=1, columnspan=2, sticky=W, ipadx=30)
+
         run_button = Button(self, text="Преобразовать", command=self.rebuild_xml)
-        run_button.grid(row=4, column=2)
+        run_button.grid(row=5, column=2)
         help_button = Button(self, text="Справка", command=self.show_help)
-        help_button.grid(row=4, column=3)
+        help_button.grid(row=5, column=3)
 
         # Виджет для отображаения результатов обработки
         self.console = ScrolledText(self, height=10)
-        self.console.grid(row=5, column=1, columnspan=3)
+        self.console.grid(row=6, column=1, columnspan=3)
 
     def to_console(self, msgs: Union[str, List[str]]) -> None:
         """Добавляет строку в виджет вывода результатов на экран."""
@@ -229,6 +238,22 @@ class Application(Frame):
                             zap.find('PHONE').text = clean_phone(phones[0])
                     else:
                         self.to_console(f'Для {fio} {dr_str} не найдено данных в отчете')
+
+        if self.filtered_by_ds_from168n:
+            self.to_console(f'Фильтруем записи по приказу 168 Н...')
+
+            if self.ds_from_168n is None:
+                from decr_168n_15_03_2022 import get_all_diagnoses
+                self.ds_from_168n = get_all_diagnoses()
+
+            removing_counter = 0
+            for zap in root.findall('ZAP'):
+                if zap.find('DISP_TYP').text == '3':
+                    if zap.find('DS').text not in self.ds_from_168n:
+                        zap.getparent().remove(zap)
+                        removing_counter += 1
+
+            self.to_console(f'Фильтрация завершена. Удалено {removing_counter} записей')
 
         result_path = os.path.join(os.getcwd(), 'result.xml')
         with open(result_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:

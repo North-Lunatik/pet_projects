@@ -271,7 +271,7 @@ Appendix3 = (
 def get_all_diagnoses() -> Set[str]:
     """Возвращает всё множество диагнозов для приказа 168н"""
 
-    def _get_diagnoses_from_group(ds_group: Union[str, tuple, dict], data: Set[str]) -> None:
+    def _extract_diagnoses_from_group(ds_group: Union[str, tuple, dict], data: Set[str]) -> None:
         """Извлекает набор диагнозов из группы."""
         
         if isinstance(ds_group, tuple):
@@ -279,7 +279,7 @@ def get_all_diagnoses() -> Set[str]:
                 if isinstance(item, str):
                     ds.add(item)
                 elif isinstance(item, dict):
-                    _get_diagnoses_from_group(tuple(*item.values()), data)
+                    _extract_diagnoses_from_group(tuple(*item.values()), data)
             return
 
         elif isinstance(ds_group, str):
@@ -287,12 +287,12 @@ def get_all_diagnoses() -> Set[str]:
             return
 
         elif isinstance(ds_group, dict):
-            _get_diagnoses_from_group(tuple(*ds_group.values()), data)
+            _extract_diagnoses_from_group(tuple(*ds_group.values()), data)
         
     ds = set()
     for suite in (Appendix1, Appendix2, Appendix3,):
         for ds_group in suite:
-            _get_diagnoses_from_group(ds_group, ds)
+            _extract_diagnoses_from_group(ds_group, ds)
     
     return ds
 
