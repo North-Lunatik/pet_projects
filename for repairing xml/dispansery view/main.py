@@ -239,7 +239,7 @@ class Application(Frame):
                     else:
                         self.to_console(f'Для {fio} {dr_str} не найдено данных в отчете')
 
-        if self.filtered_by_ds_from168n:
+        if self.filtered_by_ds_from168n.get():
             self.to_console(f'Фильтруем записи по приказу 168 Н...')
 
             if self.ds_from_168n is None:
@@ -247,13 +247,14 @@ class Application(Frame):
                 self.ds_from_168n = get_all_diagnoses()
 
             removing_counter = 0
-            for zap in root.findall('ZAP'):
+            records = root.findall('ZAP')
+            for zap in records:
                 if zap.find('DISP_TYP').text == '3':
                     if zap.find('DS').text not in self.ds_from_168n:
                         zap.getparent().remove(zap)
                         removing_counter += 1
 
-            self.to_console(f'Фильтрация завершена. Удалено {removing_counter} записей')
+            self.to_console(f'Фильтрация завершена. Удалено {removing_counter} записей из {len(records)}')
 
         result_path = os.path.join(os.getcwd(), 'result.xml')
         with open(result_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
