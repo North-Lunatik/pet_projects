@@ -20,6 +20,28 @@ help = """
 Для исправления можно выполнить "Сохранить как" в формате excel 98/2003 и после этого выбирать для обработки.
     
 """
+
+
+def get_last_show_up_date(sheet, row_index) -> str:
+    """
+    Возвращает дату последней явки пациента.
+    
+    Дата взятия на учет (A), Дата последней явки (B)
+    Если В - пусто, берем А, если В есть, берем максимальное B.
+    """
+    first_show_up_date = datetime.strptime(sheet.cell(row_index, 9).value, '%d.%m.%Y')
+    string_show_up_dates = sheet.cell(row_index, 11).value
+    show_up_dates = []
+    if string_show_up_dates:
+        show_up_dates = [datetime.strptime(x, '%d.%m.%Y') for x in sheet.cell(row_index, 11).value.split('\n')]
+
+    if show_up_dates:
+        date = max(show_up_dates)
+        return date.strftime('%d.%m.%Y')
+    else:
+        return first_show_up_date.strftime('%d.%m.%Y')
+
+
 def get_data_from_report(filename) -> Tuple[dict]:
     """Возвращает записи отчета, в которых указана дата последней явки и вспомогательные данные."""
     report_data = {}
@@ -29,11 +51,11 @@ def get_data_from_report(filename) -> Tuple[dict]:
         sheet = book.sheet_by_index(0)
         row_count = sheet.nrows
         
-        for row_index in range(21, row_count):
+        for row_index in range(21, row_count-2):
             fio = sheet.cell(row_index, 1).value
             dr = sheet.cell(row_index, 3).value
             phone = sheet.cell(row_index, 5).value
-            date_of_appearance = sheet.cell(row_index, 10).value.split('\n')[0]
+            date_of_appearance = get_last_show_up_date(sheet, row_index)
             ds = str(sheet.cell(row_index, 2).value).split('. ')[0]
             if fio == '' and dr == '':
                 break
@@ -265,7 +287,19 @@ class Application(Frame):
         if count > 0:
             self.to_console(result_text)
             remove_duplicates(result_path)
-            self.to_console('Дубликаты удалены.')
+            self.to_console('Дубликаты удалены.\n')
+
+        self.to_console('Поиск записей без диагноза:')
+        i = 0
+        for zap in root.findall('ZAP'):
+            if zap.find('DISP_TYP').text != '3' and not zap.find('DS').text:
+                zap.getparent().remove(zap)
+                i += 1
+        if i:
+            self.to_console(f'Найдено и удалено {i} записей.')
+        else:
+            self.to_console(f'Записей не найдено.\n')
+
         self.to_console(f'Результат находится в `{result_path}`')
         self.to_console(['', 'Готово.'])
 
