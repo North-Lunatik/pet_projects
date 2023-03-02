@@ -250,7 +250,7 @@ class Application(Frame):
             records = root.findall('ZAP')
             for zap in records:
                 if zap.find('DISP_TYP').text == '3':
-                    if zap.find('DS').text not in self.ds_from_168n:
+                    if str(zap.find('DS').text).strip().upper() not in self.ds_from_168n:
                         zap.getparent().remove(zap)
                         removing_counter += 1
 
