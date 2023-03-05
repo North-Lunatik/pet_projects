@@ -172,14 +172,22 @@ class Application(Frame):
         )
         self.cb2.grid(row=4, column=1, columnspan=2, sticky=W, ipadx=30)
 
+        # Имя файла
+        package_number_field_label = Label(self, text="Имя файла")
+        package_number_field_label.grid(row=5, column=1, padx=5, pady=5)
+        self.package_number_field = Entry(self, width=60)
+        self.package_number_field.grid(row=5, column=2)
+        package_number_example_label = Label(self, text="D-M<Код МО>-F35-<Год>-<Номер пакета>, пример: D-M352530-F35-2023-1")
+        package_number_example_label.grid(row=6, column=1, columnspan=2)
+
         run_button = Button(self, text="Преобразовать", command=self.rebuild_xml)
-        run_button.grid(row=5, column=2)
+        run_button.grid(row=7, column=2)
         help_button = Button(self, text="Справка", command=self.show_help)
-        help_button.grid(row=5, column=3)
+        help_button.grid(row=7, column=3)
 
         # Виджет для отображаения результатов обработки
         self.console = ScrolledText(self, height=10)
-        self.console.grid(row=6, column=1, columnspan=3)
+        self.console.grid(row=8, column=1, columnspan=3)
 
     def to_console(self, msgs: Union[str, List[str]]) -> None:
         """Добавляет строку в виджет вывода результатов на экран."""
@@ -277,8 +285,27 @@ class Application(Frame):
                         removing_counter += 1
 
             self.to_console(f'Фильтрация завершена. Удалено {removing_counter} записей из {len(records)}')
+        
+        custom_filename = self.package_number_field.get()
+        if custom_filename:
+            custom_filename = custom_filename.upper()
+            
+            # D-M352530-F35-2023-1
+            filename_elements = custom_filename.split('-')
 
-        result_path = os.path.join(os.getcwd(), 'result.xml')
+            result_path = os.path.join(os.getcwd(), f'{custom_filename}.xml')
+            root.find('ZGLV').find('FILENAME').text = custom_filename
+            
+            build_date = datetime.now()
+            root.find('ZGLV').find('DATA').text = build_date.strftime('%Y-%m-%d')
+
+            root.find('ZGLV').find('CODE_MO').text = filename_elements[1][1:]
+
+            root.find('ZGLV').find('YEAR').text = filename_elements[3]
+            root.find('ZGLV').find('R').text = filename_elements[4]
+        else:
+            result_path = os.path.join(os.getcwd(), 'result.xml')
+        
         with open(result_path, "w", encoding='cp1251', errors=None, newline='\r\n') as f:
             f.write(tostring(root, pretty_print=True, encoding='Windows-1251', xml_declaration=True).decode('cp1251'))
         
